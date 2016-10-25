@@ -40,14 +40,16 @@ case class CassandraSourceSetting(routes : Config,
                                   config: AbstractConfig,
                                   errorPolicy : ErrorPolicy = new ThrowErrorPolicy,
                                   taskRetires : Int = CassandraConfigConstants.NBR_OF_RETIRES_DEFAULT
-                               ) extends CassandraSetting
+                                 ) extends CassandraSetting
 
 case class CassandraSinkSetting(keySpace: String,
                                 routes: Set[Config],
                                 fields : Map[String, Map[String, String]],
                                 ignoreField : Map[String, Set[String]],
                                 errorPolicy: ErrorPolicy,
-                                taskRetries: Int = CassandraConfigConstants.NBR_OF_RETIRES_DEFAULT) extends CassandraSetting
+                                taskRetries: Int = CassandraConfigConstants.NBR_OF_RETIRES_DEFAULT,
+                                tenantKeyField: String,
+                                tablePattern: String) extends CassandraSetting
 
 /**
   * Cassandra Setting used for both Readers and writers
@@ -106,12 +108,14 @@ object CassandraSettings extends StrictLogging {
     val retries = config.getInt(CassandraConfigConstants.NBR_OF_RETRIES)
     val errorPolicyE = ErrorPolicyEnum.withName(config.getString(CassandraConfigConstants.ERROR_POLICY).toUpperCase)
     val errorPolicy = ErrorPolicy(errorPolicyE)
+    val tenantKeyField = config.getString(CassandraConfigConstants.TENANT_KEY_FIELD)
+    val tablePattern = config.getString(CassandraConfigConstants.TABLE_PATTERN)
 
     val fields = routes.map(rm =>
       (rm.getSource, rm.getFieldAlias.map(fa => (fa.getField,fa.getAlias)).toMap)
     ).toMap
 
     val ignoreFields = routes.map(rm => (rm.getSource, rm.getIgnoredField.toSet)).toMap
-    CassandraSinkSetting(keySpace, routes, fields, ignoreFields, errorPolicy, retries)
+    CassandraSinkSetting(keySpace, routes, fields, ignoreFields, errorPolicy, retries, tenantKeyField, tablePattern)
   }
 }

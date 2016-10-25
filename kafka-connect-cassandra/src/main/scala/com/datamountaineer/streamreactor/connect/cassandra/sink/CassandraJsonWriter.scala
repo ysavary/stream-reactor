@@ -123,7 +123,11 @@ class CassandraJsonWriter(cassCon: CassandraConnection, settings: CassandraSinkS
       val futures = records.map { record =>
 
         executor.submit {
-          val preparedStatement: PreparedStatement = preparedCache(record.topic())
+          val keyJson = convertKeyToJson(record)
+          val tenant = keyJson.get(settings.tenantKeyField).asText()
+          val tablePattern = """\{([^}]*)\}""".r
+          val tableName = tablePattern.replaceAllIn(settings.tablePattern, tenant)
+          val preparedStatement: PreparedStatement = getPreparedStatement(tableName).get
           val json = toJson(record)
 
           val bound = preparedStatement.bind(json)
