@@ -32,7 +32,12 @@ object CassandraConnection extends StrictLogging {
   def apply(connectorConfig: AbstractConfig) : CassandraConnection = {
     val cluster = getCluster(connectorConfig)
     val keySpace = connectorConfig.getString(CassandraConfigConstants.KEY_SPACE)
-    val session = getSession(keySpace, cluster)
+    var session: Session = null
+    if (keySpace != null && keySpace != "") {
+      session = getSession(keySpace, cluster)
+    } else {
+      session = getSession(cluster)
+    }
     new CassandraConnection(cluster = cluster, session = session)
   }
 
@@ -61,6 +66,10 @@ object CassandraConnection extends StrictLogging {
     * */
   def getSession(keySpace: String, cluster: Cluster) : Session = {
     cluster.connect(keySpace)
+  }
+
+  def getSession(cluster: Cluster) : Session = {
+    cluster.connect()
   }
 
   /**

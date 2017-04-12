@@ -88,7 +88,7 @@ allprojects {
 
     shadowJar {
         configurations = [project.configurations.runtime]
-        baseName = "${project.name}-${project.version}-${confluentVersion}-all"
+        baseName = "${project.name}-${project.version}-${confluentVersion}-aiko-2"
         classifier = null
         version = null
 

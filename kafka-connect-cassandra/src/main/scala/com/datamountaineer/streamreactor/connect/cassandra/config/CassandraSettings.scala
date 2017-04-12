@@ -40,16 +40,14 @@ case class CassandraSourceSetting(routes : Config,
                                   config: AbstractConfig,
                                   errorPolicy : ErrorPolicy = new ThrowErrorPolicy,
                                   taskRetires : Int = CassandraConfigConstants.NBR_OF_RETIRES_DEFAULT
-                                 ) extends CassandraSetting
+                               ) extends CassandraSetting
 
 case class CassandraSinkSetting(keySpace: String,
                                 routes: Set[Config],
                                 fields : Map[String, Map[String, String]],
                                 ignoreField : Map[String, Set[String]],
                                 errorPolicy: ErrorPolicy,
-                                taskRetries: Int = CassandraConfigConstants.NBR_OF_RETIRES_DEFAULT,
-                                tenantKeyField: String,
-                                tablePattern: String) extends CassandraSetting
+                                taskRetries: Int = CassandraConfigConstants.NBR_OF_RETIRES_DEFAULT) extends CassandraSetting
 
 /**
   * Cassandra Setting used for both Readers and writers
@@ -101,21 +99,18 @@ object CassandraSettings extends StrictLogging {
   def configureSink(config: CassandraConfigSink): CassandraSinkSetting = {
     //get keyspace
     val keySpace = config.getString(CassandraConfigConstants.KEY_SPACE)
-    require(!keySpace.isEmpty, CassandraConfigConstants.MISSING_KEY_SPACE_MESSAGE)
     val raw = config.getString(CassandraConfigConstants.EXPORT_ROUTE_QUERY)
     require(!raw.isEmpty, s"${CassandraConfigConstants.EXPORT_ROUTE_QUERY} is empty.")
     val routes = raw.split(";").map(r => Config.parse(r)).toSet
     val retries = config.getInt(CassandraConfigConstants.NBR_OF_RETRIES)
     val errorPolicyE = ErrorPolicyEnum.withName(config.getString(CassandraConfigConstants.ERROR_POLICY).toUpperCase)
     val errorPolicy = ErrorPolicy(errorPolicyE)
-    val tenantKeyField = config.getString(CassandraConfigConstants.TENANT_KEY_FIELD)
-    val tablePattern = config.getString(CassandraConfigConstants.TABLE_PATTERN)
 
     val fields = routes.map(rm =>
       (rm.getSource, rm.getFieldAlias.map(fa => (fa.getField,fa.getAlias)).toMap)
     ).toMap
 
     val ignoreFields = routes.map(rm => (rm.getSource, rm.getIgnoredField.toSet)).toMap
-    CassandraSinkSetting(keySpace, routes, fields, ignoreFields, errorPolicy, retries, tenantKeyField, tablePattern)
+    CassandraSinkSetting(keySpace, routes, fields, ignoreFields, errorPolicy, retries)
   }
 }

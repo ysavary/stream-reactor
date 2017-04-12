@@ -29,7 +29,9 @@ import com.datastax.driver.core.{PreparedStatement, Session}
 import com.typesafe.scalalogging.slf4j.StrictLogging
 import org.apache.kafka.connect.sink.SinkRecord
 
+import scala.collection.mutable
 import scala.concurrent.duration._
+import scala.util.matching.Regex.Match
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -47,41 +49,43 @@ class CassandraJsonWriter(cassCon: CassandraConnection, settings: CassandraSinkS
   configureConverter(jsonConverter)
   private var session: Session = getSession.get
 
-  CassandraUtils.checkCassandraTables(session.getCluster, settings.routes, session.getLoggedKeyspace)
-  private var preparedCache: Map[String, PreparedStatement] = cachePreparedStatements
+  //CassandraUtils.checkCassandraTables(session.getCluster, settings.routes, session.getLoggedKeyspace)
+  private val tablePerTopic: Map[String, String] = {
+    settings.routes.map(r => {
+      val topic = r.getSource
+      val table = r.getTarget
+      topic -> table
+    }).toMap
+  }
+  private val preparedCache: mutable.HashMap[String, PreparedStatement] = mutable.HashMap.empty[String, PreparedStatement]
 
   /**
     * Get a connection to cassandra based on the config
     **/
   private def getSession: Option[Session] = {
-    val t = Try(cassCon.cluster.connect(settings.keySpace))
-    handleTry[Session](t)
+    if (settings.keySpace != null && settings.keySpace != "") {
+      val t = Try(cassCon.cluster.connect(settings.keySpace))
+      handleTry[Session](t)
+    } else {
+      val t = Try(cassCon.cluster.connect())
+      handleTry[Session](t)
+    }
   }
 
   /**
-    * Cache the preparedStatements per topic rather than create them every time
-    * Each one is an insert statement aligned to topics.
-    *
-    * @return A Map of topic->preparedStatements.
-    **/
-  private def cachePreparedStatements: Map[String, PreparedStatement] = {
-    settings.routes.map(r => {
-      val topic = r.getSource
-      val table = r.getTarget
-      logger.info(s"Preparing statements for $topic.")
-      topic -> getPreparedStatement(table).get
-    }).toMap
-  }
-
-  /**
-    * Build a preparedStatement for the given topic.
+    * Get or create a prepared statement for a given table
     *
     * @param table The table name to prepare the statement for.
-    * @return A prepared statement for the given topic.
+    * @return A prepared statement for the given table.
     **/
   private def getPreparedStatement(table: String): Option[PreparedStatement] = {
-    val t: Try[PreparedStatement] = Try(session.prepare(s"INSERT INTO ${session.getLoggedKeyspace}.$table JSON ?"))
-    handleTry[PreparedStatement](t)
+    Option(preparedCache.getOrElse(table, {
+      logger.info(s"Preparing statements for $table.")
+      val t: Try[PreparedStatement] = Try(session.prepare(s"INSERT INTO $table JSON ?"))
+      val preparedStatement: Option[PreparedStatement] = handleTry[PreparedStatement](t)
+      preparedCache.put(table, preparedStatement.get)
+      return preparedStatement
+    }))
   }
 
   /**
@@ -99,7 +103,6 @@ class CassandraJsonWriter(cassCon: CassandraConnection, settings: CassandraSinkS
       if (session.isClosed) {
         logger.error(s"Session is closed attempting to reconnect to keySpace ${settings.keySpace}")
         session = getSession.get
-        preparedCache = cachePreparedStatements
       }
       insert(records)
     }
@@ -123,11 +126,15 @@ class CassandraJsonWriter(cassCon: CassandraConnection, settings: CassandraSinkS
       val futures = records.map { record =>
 
         executor.submit {
+          val tablePattern: String = tablePerTopic(record.topic())
           val keyJson = convertKeyToJson(record)
-          val tenant = keyJson.get(settings.tenantKeyField).asText()
-          val tablePattern = """\{([^}]*)\}""".r
-          val tableName = tablePattern.replaceAllIn(settings.tablePattern, tenant)
-          val preparedStatement: PreparedStatement = getPreparedStatement(tableName).get
+          val table =
+            """__(.*?)__""".r.findAllIn(tablePattern).matchData.foldLeft(tablePattern)((newContent: String, m: Match) => {
+              val key = m.group(1)
+              val value = keyJson.get(key).asText()
+              newContent.replace(m.group(0), value)
+            })
+          val preparedStatement: PreparedStatement = getPreparedStatement(table).get
           val json = toJson(record)
 
           val bound = preparedStatement.bind(json)

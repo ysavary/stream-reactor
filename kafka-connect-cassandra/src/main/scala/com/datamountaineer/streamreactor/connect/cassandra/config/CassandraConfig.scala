@@ -49,7 +49,7 @@ case class CassandraConfig() {
         CassandraConfigConstants.PORT)
 
       .define(CassandraConfigConstants.KEY_SPACE,
-          Type.STRING,
+          Type.STRING, "",
           Importance.HIGH,
           CassandraConfigConstants.KEY_SPACE_DOC,
           "Connection",
@@ -265,14 +265,6 @@ object CassandraConfigSink {
       1,
       ConfigDef.Width.LONG,
       CassandraConfigConstants.EXPORT_ROUTE_QUERY)
-    .define(CassandraConfigConstants.TENANT_KEY_FIELD,
-      Type.STRING,
-      Importance.HIGH,
-      "Tenant key from message's key")
-    .define(CassandraConfigConstants.TABLE_PATTERN,
-      Type.STRING,
-      Importance.HIGH,
-      "Table pattern")
 }
 
 case class CassandraConfigSink(props: util.Map[String, String])

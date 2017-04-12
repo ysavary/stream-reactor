@@ -121,7 +121,4 @@ object CassandraConfigConstants {
 
   val IMPORT_ROUTE_QUERY = "connect.cassandra.import.route.query"
   val IMPORT_ROUTE_QUERY_DOC = "KCQL expression describing field selection and routes."
-
-  val TENANT_KEY_FIELD = "connect.cassandra.tenant.key.field"
-  val TABLE_PATTERN = "connect.cassandra.table.pattern"
 }
