@@ -103,6 +103,7 @@ class CassandraJsonWriter(cassCon: CassandraConnection, settings: CassandraSinkS
       if (session.isClosed) {
         logger.error(s"Session is closed attempting to reconnect to keySpace ${settings.keySpace}")
         session = getSession.get
+        preparedCache.clear
       }
       insert(records)
     }
